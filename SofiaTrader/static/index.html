@@ -171,7 +171,7 @@
     </div>
 
     <div class="card">
-      <h2>Posições abertas</h2>
+      <h2>Posições abertas <button onclick="closeAllTrades()" style="font-size:11px;padding:3px 8px;">Fechar todas</button></h2>
       <table>
         <thead><tr><th>Símbolo</th><th>Tipo</th><th>Vol</th><th>Preço</th><th>P&amp;L</th><th></th></tr></thead>
         <tbody id="positionsBody">
@@ -207,8 +207,8 @@
       <div class="row">
         <input id="tradeSymbol" placeholder="Símbolo" style="width:100px" value="XAUUSD">
         <input id="tradeLot" placeholder="Lote" style="width:70px" value="0.01">
-        <input id="tradeSl" placeholder="SL pips" style="width:70px" value="20">
-        <input id="tradeTp" placeholder="TP pips" style="width:70px" value="60">
+        <input id="tradeSl" placeholder="SL (preço)" style="width:90px">
+        <input id="tradeTp" placeholder="TP (preço)" style="width:90px">
       </div>
       <div class="row">
         <button class="buy-btn" onclick="openTrade('BUY')">BUY</button>
@@ -250,7 +250,7 @@ function connectWs() {
   ws.onmessage = (ev) => {
     const msg = JSON.parse(ev.data);
     if (msg.type === "ticks") renderTicks(msg.data);
-    if (msg.type === "trade_opened") { refreshPositions(); refreshAccount(); }
+    if (msg.type === "trade_opened" || msg.type === "trade_closed") { refreshPositions(); refreshAccount(); }
   };
 }
 
@@ -337,6 +337,13 @@ async function runAiDecide() {
       <div class="analysis-line"><span>TP1/TP2/TP3</span><span>${d.tp1} / ${d.tp2} / ${d.tp3}</span></div>
       <div class="analysis-line"><span>Lote / R:R</span><span>${d.lot} / ${d.rr}</span></div>
       <div class="summary-box">${d.reasoning}</div>`;
+    if (d.action === "BUY" || d.action === "SELL") {
+      // Pré-preenche o formulário de ordem com os níveis calculados pela IA
+      document.getElementById("tradeSymbol").value = sym;
+      document.getElementById("tradeLot").value = d.lot || 0.01;
+      document.getElementById("tradeSl").value = d.sl || "";
+      document.getElementById("tradeTp").value = d.tp1 || "";
+    }
   } catch (e) { el.innerHTML = '<div class="empty">Erro — Ollama indisponível</div>'; }
 }
 
@@ -345,8 +352,8 @@ async function openTrade(direction) {
     symbol: document.getElementById("tradeSymbol").value,
     direction,
     lot: document.getElementById("tradeLot").value,
-    sl_pips: document.getElementById("tradeSl").value,
-    tp_pips: document.getElementById("tradeTp").value,
+    sl: document.getElementById("tradeSl").value,
+    tp: document.getElementById("tradeTp").value,
   };
   const box = document.getElementById("tradeResult");
   box.style.display = "block";
@@ -363,6 +370,14 @@ async function openTrade(direction) {
 async function closeTrade(ticket) {
   try {
     await fetch(`${API}/api/trade/close/${ticket}`, { method: "POST" });
+    refreshPositions(); refreshAccount();
+  } catch (e) {}
+}
+
+async function closeAllTrades() {
+  if (!confirm("Fechar TODAS as posições abertas?")) return;
+  try {
+    await fetch(`${API}/api/trade/close_all`, { method: "POST" });
     refreshPositions(); refreshAccount();
   } catch (e) {}
 }

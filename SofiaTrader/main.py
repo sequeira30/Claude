@@ -30,19 +30,21 @@ def log(msg, lvl="INFO"):
 def cycle():
     log("Ciclo iniciado")
 
-    # 1. Notícias
+    # 1. Gerir posições já abertas (BE + trailing) — deve correr sempre,
+    #    mesmo durante um blackout de notícias ou limite de risco atingido;
+    #    isso só bloqueia ABRIR novas posições, não proteger as existentes.
+    risk.manage_all()
+
+    # 2. Notícias — bloqueia novas entradas perto de eventos de alto impacto
     blocked, ev = news.is_blocked()
     if blocked:
         log(f"Bloqueado: {ev['event']} em {ev['mins_to']}min","WARN")
         return
 
-    # 2. Risco global
+    # 3. Risco global
     can, msg = risk.can_trade()
     if not can:
         log(msg, "WARN"); return
-
-    # 3. Gerir posições (BE + trailing)
-    risk.manage_all()
 
     # 4. Scan pares primários
     for pair in PAIRS_PRIMARY:
@@ -68,8 +70,9 @@ def cycle():
                     if can2:
                         lot    = risk.calc_lot(pair, dec.sl, dec.entry)
                         result = bridge.market_order(pair, dec.action, lot,
+                                                     sl=dec.sl, tp=dec.tp1,
                                                      comment="Sofia-Auto")
-                        log(f"ORDEM: {pair} {dec.action} {lot}L | {result}","TRADE")
+                        log(f"ORDEM: {pair} {dec.action} {lot}L SL:{dec.sl} TP:{dec.tp1} | {result}","TRADE")
                         _log_trade(pair, dec, result)
             else:
                 log(f"[MANUAL] Setup encontrado — ver dashboard","INFO")
@@ -116,6 +119,7 @@ if __name__ == "__main__":
     # Agendador
     schedule.every(SCAN_INTERVAL).minutes.do(cycle)
     schedule.every().day.at("00:01").do(risk.reset_daily)
+    schedule.every().monday.at("00:02").do(risk.reset_weekly)
     schedule.every().hour.do(news.refresh)
 
     cycle()  # Execução imediata

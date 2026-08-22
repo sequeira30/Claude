@@ -1,6 +1,7 @@
 import ollama
 import json
-from dataclasses import dataclass
+import re
+from dataclasses import dataclass, fields
 from typing import Optional
 
 @dataclass
@@ -65,19 +66,57 @@ Responde APENAS com JSON:
                 options={"temperature":0.1,"num_predict":500}
             )
             content = resp["message"]["content"]
-            # Limpar deepseek <think> tags
-            if "</think>" in content:
-                content = content.split("</think>")[-1]
-            # Limpar markdown
-            if "```json" in content:
-                content = content.split("```json")[1].split("```")[0]
-            elif "```" in content:
-                content = content.split("```")[1].split("```")[0]
-            return TradeDecision(**json.loads(content.strip()))
+            dec = self._parse_decision(content)
+            return self._safety_check(dec)
         except Exception as e:
             return TradeDecision(action="WAIT", confidence=0, lot_size=0,
                 entry=0, sl=0, tp1=0, tp2=0, tp3=0,
                 reasoning=f"Erro: {e}", risk_reward=0, news_risk="HIGH")
+
+    def _parse_decision(self, content: str) -> TradeDecision:
+        """Extrai o JSON da resposta do modelo de forma resiliente:
+        remove <think>, remove blocos markdown, e como último recurso
+        procura o primeiro objecto {...} no texto. Campos desconhecidos
+        são ignorados e campos em falta recebem valores neutros, em vez
+        de a resposta inteira falhar por um único campo extra."""
+        if "</think>" in content:
+            content = content.split("</think>")[-1]
+        if "```json" in content:
+            content = content.split("```json")[1].split("```")[0]
+        elif "```" in content:
+            content = content.split("```")[1].split("```")[0]
+        content = content.strip()
+        try:
+            raw = json.loads(content)
+        except json.JSONDecodeError:
+            match = re.search(r"\{.*\}", content, re.DOTALL)
+            if not match:
+                raise
+            raw = json.loads(match.group(0))
+
+        known = {f.name for f in fields(TradeDecision)}
+        defaults = {"action": "WAIT", "confidence": 0, "lot_size": 0,
+                    "entry": 0, "sl": 0, "tp1": 0, "tp2": 0, "tp3": 0,
+                    "reasoning": "", "risk_reward": 0, "news_risk": "HIGH"}
+        clean = {k: raw.get(k, defaults[k]) for k in known}
+        return TradeDecision(**clean)
+
+    def _safety_check(self, dec: TradeDecision) -> TradeDecision:
+        """Rede de segurança: se a IA sugerir BUY/SELL com um SL do lado
+        errado da entrada (ou preços em falta), rejeita para WAIT em vez
+        de deixar passar uma ordem sem sentido para uma conta real."""
+        if dec.action not in ("BUY", "SELL"):
+            return dec
+        if dec.entry <= 0 or dec.sl <= 0:
+            return TradeDecision(**{**dec.__dict__, "action": "WAIT",
+                "reasoning": f"[Safety] entry/sl em falta — {dec.reasoning}"})
+        if dec.action == "BUY" and dec.sl >= dec.entry:
+            return TradeDecision(**{**dec.__dict__, "action": "WAIT",
+                "reasoning": f"[Safety] SL acima da entrada num BUY — {dec.reasoning}"})
+        if dec.action == "SELL" and dec.sl <= dec.entry:
+            return TradeDecision(**{**dec.__dict__, "action": "WAIT",
+                "reasoning": f"[Safety] SL abaixo da entrada num SELL — {dec.reasoning}"})
+        return dec
 
     def chat(self, message: str, context: str = "") -> str:
         """Chat livre sobre mercado em português"""

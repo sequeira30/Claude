@@ -70,15 +70,33 @@ async def ai_decide(symbol: str, tf: str):
 
 @app.post("/api/trade/open")
 async def open_trade(body: dict):
+    """sl/tp são níveis de PREÇO absolutos (opcionais) — não pips.
+    O motor SMC e a Sofia AI já devolvem preços prontos a usar aqui."""
+    sl = float(body["sl"]) if body.get("sl") not in (None, "") else None
+    tp = float(body["tp"]) if body.get("tp") not in (None, "") else None
     result = bridge.market_order(
         body["symbol"], body["direction"], float(body.get("lot",0.01)),
-        float(body.get("sl_pips",20)), float(body.get("tp_pips",60)), "Sofia-Web")
+        sl=sl, tp=tp, comment="Sofia-Web")
     await _broadcast({"type":"trade_opened","data":result})
     return result
 
 @app.post("/api/trade/close/{ticket}")
 async def close_trade(ticket: int):
-    return bridge.close_position(ticket)
+    result = bridge.close_position(ticket)
+    await _broadcast({"type":"trade_closed","data":result})
+    return result
+
+@app.post("/api/trade/close_all")
+async def close_all_trades():
+    results = bridge.close_all_positions()
+    await _broadcast({"type":"trade_closed","data":results})
+    return results
+
+@app.post("/api/trade/modify/{ticket}")
+async def modify_trade(ticket: int, body: dict):
+    sl = float(body["sl"]) if body.get("sl") not in (None, "") else 0.0
+    tp = float(body["tp"]) if body.get("tp") not in (None, "") else 0.0
+    return bridge.modify_position(ticket, sl=sl, tp=tp)
 
 @app.get("/api/ai/chat")
 async def ai_chat(msg: str):
@@ -114,7 +132,8 @@ async def _live_ticker():
 
 @app.on_event("startup")
 async def startup():
-    bridge.connect()
+    if not bridge.connect():
+        print("[Server] ✗ Falha a ligar ao MT5 — endpoints de conta/trading ficarão vazios até reiniciar")
     asyncio.create_task(_live_ticker())
     threading.Thread(target=scanner.start, args=(5,), daemon=True).start()
     print("[Server] ✓ http://localhost:8080")

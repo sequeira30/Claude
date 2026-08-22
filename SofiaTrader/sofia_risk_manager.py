@@ -62,15 +62,12 @@ class SofiaRiskManager:
         return True, "✓ OK"
 
     def calc_lot(self, symbol: str, sl_price: float, entry_price: float) -> float:
-        bal         = self.bridge.get_account().get("balance", 1000)
-        risk_amount = bal * (self.MAX_RISK_PCT / 100)
-        sl_dist     = abs(entry_price - sl_price)
-        if sl_dist == 0: return 0.01
-        # Aproximação: XAUUSD 1 pip = $1 por 0.01 lot
-        pip_value_per_lot = 10
-        sl_pips = sl_dist / 0.1
-        lot = round(risk_amount / (sl_pips * pip_value_per_lot), 2)
-        return max(0.01, min(lot, 5.0))
+        sl_dist = abs(entry_price - sl_price)
+        if sl_dist == 0:
+            return 0.01
+        # Delega no bridge: usa trade_tick_value/trade_tick_size do símbolo,
+        # correto para qualquer instrumento (não só XAUUSD).
+        return self.bridge.calc_lot_size(symbol, self.MAX_RISK_PCT, sl_dist)
 
     def manage_all(self):
         """Chamar periodicamente — gere BE e trailing em todas as posições"""
@@ -88,25 +85,29 @@ class SofiaRiskManager:
         tick = self.bridge.get_tick(symbol)
         if not tick: return
         current = tick["bid"] if direction == "BUY" else tick["ask"]
+        point   = self.bridge.get_symbol_point(symbol)
 
-        if not sl or abs(entry - sl) < 0.00001: return
+        if not sl or abs(entry - sl) < point: return
         sl_dist     = abs(entry - sl)
         profit_dist = abs(current - entry) if direction == "BUY" else abs(entry - current)
         rr          = profit_dist / sl_dist
 
-        # Break-even
+        # Break-even: pequena margem de 10 points do próprio símbolo
+        # (não um valor fixo de forex — isso partia-se em XAUUSD/BTCUSD)
+        buffer = point * 10
         if rr >= self.BE_TRIGGER_RR:
-            be = entry + 0.0001 if direction == "BUY" else entry - 0.0001
+            be = entry + buffer if direction == "BUY" else entry - buffer
             if (direction == "BUY"  and sl < be) or \
                (direction == "SELL" and sl > be):
                 self.bridge.modify_position(ticket, sl=be, tp=tp)
                 print(f"[Risk] BE → {symbol} #{ticket}")
 
-        # Trailing stop
+        # Trailing stop: distância também escalada pelo point do símbolo
         if rr >= self.TRAIL_START_RR:
-            trail = self.TRAIL_PIPS * 0.1
-            new_sl = round(current - trail, 5) if direction == "BUY" \
-                     else round(current + trail, 5)
+            trail = self.TRAIL_PIPS * point * 10
+            digits = 2 if point >= 0.001 else 5
+            new_sl = round(current - trail, digits) if direction == "BUY" \
+                     else round(current + trail, digits)
             if (direction == "BUY"  and new_sl > sl) or \
                (direction == "SELL" and new_sl < sl):
                 self.bridge.modify_position(ticket, sl=new_sl, tp=tp)
@@ -129,3 +130,8 @@ class SofiaRiskManager:
         self.day_start = self.bridge.get_account().get("balance", 0)
         self._save_stats()
         print(f"[Risk] Stats diárias reset | ${self.day_start:.2f}")
+
+    def reset_weekly(self):
+        self.week_start = self.bridge.get_account().get("balance", 0)
+        self._save_stats()
+        print(f"[Risk] Stats semanais reset | ${self.week_start:.2f}")
