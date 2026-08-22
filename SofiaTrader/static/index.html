@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sofia Trading Command Center</title>
+<style>
+  :root {
+    --bg: #0b0e14;
+    --panel: #12161f;
+    --panel-2: #171c28;
+    --border: #232a38;
+    --text: #e6e9ef;
+    --muted: #8892a6;
+    --green: #22c55e;
+    --red: #ef4444;
+    --amber: #f59e0b;
+    --blue: #3b82f6;
+    --accent: #7c8cff;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 14px;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  header h1 {
+    font-size: 16px;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  header h1 .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--muted);
+    display: inline-block;
+  }
+  header h1 .dot.live { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .acct { display: flex; gap: 18px; font-size: 13px; color: var(--muted); flex-wrap: wrap; }
+  .acct b { color: var(--text); }
+  main {
+    display: grid;
+    grid-template-columns: 1.1fr 1.3fr 1fr;
+    gap: 14px;
+    padding: 16px;
+    max-width: 1500px;
+    margin: 0 auto;
+  }
+  @media (max-width: 1100px) { main { grid-template-columns: 1fr; } }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+  }
+  .card h2 {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    margin: 0 0 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 500; font-size: 11px; text-transform: uppercase; }
+  .buy { color: var(--green); font-weight: 600; }
+  .sell { color: var(--red); font-weight: 600; }
+  .pill {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .pill.Aplus { background: rgba(34,197,94,.15); color: var(--green); }
+  .pill.A { background: rgba(59,130,246,.15); color: var(--blue); }
+  .pill.B { background: rgba(245,158,11,.15); color: var(--amber); }
+  .pill.C { background: rgba(148,163,184,.15); color: var(--muted); }
+  .tick-grid { display: grid; grid-template-columns: 1fr auto auto; gap: 6px 10px; font-variant-numeric: tabular-nums; }
+  .tick-grid .sym { color: var(--muted); }
+  .tick-grid .bid { color: var(--red); }
+  .tick-grid .ask { color: var(--green); }
+  select, input, button {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 7px 9px;
+    font-size: 13px;
+  }
+  button {
+    cursor: pointer;
+    font-weight: 600;
+  }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #0b0e14; }
+  button.buy-btn { background: var(--green); border-color: var(--green); color: #06110a; }
+  button.sell-btn { background: var(--red); border-color: var(--red); color: #150707; }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
+  .analysis-line { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px dashed var(--border); font-size: 13px; }
+  .analysis-line span:first-child { color: var(--muted); }
+  .summary-box {
+    white-space: pre-wrap;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12px;
+    margin-top: 10px;
+    color: var(--muted);
+  }
+  .chat-log {
+    height: 220px;
+    overflow-y: auto;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px;
+    margin-bottom: 8px;
+    font-size: 13px;
+  }
+  .chat-log .msg { margin-bottom: 8px; }
+  .chat-log .msg.user { color: var(--accent); }
+  .chat-log .msg.sofia { color: var(--text); }
+  .chat-log .msg b { color: var(--muted); font-size: 11px; text-transform: uppercase; display: block; }
+  .empty { color: var(--muted); font-style: italic; padding: 10px 0; text-align: center; }
+  .badge-kz { background: var(--panel-2); border: 1px solid var(--border); padding: 2px 8px; border-radius: 6px; font-size: 11px; color: var(--muted); }
+  footer { text-align: center; color: var(--muted); font-size: 11px; padding: 20px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1><span class="dot" id="liveDot"></span> Sofia Trading Command Center</h1>
+  <div class="acct" id="acctInfo">
+    <span>Login: <b>—</b></span>
+    <span>Saldo: <b>—</b></span>
+    <span>Equity: <b>—</b></span>
+    <span>Lucro: <b>—</b></span>
+  </div>
+</header>
+
+<main>
+  <!-- COLUMN 1: Ticks + Positions -->
+  <div style="display:flex; flex-direction:column; gap:14px;">
+    <div class="card">
+      <h2>Preços ao vivo</h2>
+      <div class="tick-grid" id="ticks">
+        <div class="empty" style="grid-column:1/4;">A aguardar ligação WebSocket…</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Posições abertas <button onclick="closeAllTrades()" style="font-size:11px;padding:3px 8px;">Fechar todas</button></h2>
+      <table>
+        <thead><tr><th>Símbolo</th><th>Tipo</th><th>Vol</th><th>Preço</th><th>P&amp;L</th><th></th></tr></thead>
+        <tbody id="positionsBody">
+          <tr><td colspan="6" class="empty">Sem posições</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- COLUMN 2: Analysis + Trade -->
+  <div style="display:flex; flex-direction:column; gap:14px;">
+    <div class="card">
+      <h2>Análise SMC/ICT</h2>
+      <div class="row">
+        <select id="symSel">
+          <option>XAUUSD</option><option>BTCUSD</option><option>EURUSD</option>
+          <option>GBPUSD</option><option>USDJPY</option><option>US30</option>
+          <option>NAS100</option><option>USDCHF</option>
+        </select>
+        <select id="tfSel">
+          <option>M15</option><option>H1</option><option>H4</option><option>D1</option>
+        </select>
+        <button class="primary" onclick="runAnalysis()">Analisar</button>
+        <button onclick="runAiDecide()">Pedir decisão à IA</button>
+      </div>
+      <div id="analysisResult">
+        <div class="empty">Escolhe um par e clica em Analisar</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Executar ordem</h2>
+      <div class="row">
+        <input id="tradeSymbol" placeholder="Símbolo" style="width:100px" value="XAUUSD">
+        <input id="tradeLot" placeholder="Lote" style="width:70px" value="0.01">
+        <input id="tradeSl" placeholder="SL (preço)" style="width:90px">
+        <input id="tradeTp" placeholder="TP (preço)" style="width:90px">
+      </div>
+      <div class="row">
+        <button class="buy-btn" onclick="openTrade('BUY')">BUY</button>
+        <button class="sell-btn" onclick="openTrade('SELL')">SELL</button>
+      </div>
+      <div id="tradeResult" class="summary-box" style="display:none;"></div>
+    </div>
+  </div>
+
+  <!-- COLUMN 3: Signals + Chat -->
+  <div style="display:flex; flex-direction:column; gap:14px;">
+    <div class="card">
+      <h2>Sinais activos <span id="signalsUpdated" style="text-transform:none;font-weight:400;"></span></h2>
+      <div id="signalsList"><div class="empty">Sem sinais — scanner a correr…</div></div>
+    </div>
+
+    <div class="card">
+      <h2>Sofia AI</h2>
+      <div class="chat-log" id="chatLog"></div>
+      <div class="row" style="margin-bottom:0;">
+        <input id="chatInput" placeholder="Pergunta à Sofia…" style="flex:1;" onkeydown="if(event.key==='Enter')sendChat()">
+        <button class="primary" onclick="sendChat()">Enviar</button>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>Sofia Trading System · PUPrime #1729484 · SMC/ICT + Ollama local</footer>
+
+<script>
+const API = "";
+let ws;
+
+function connectWs() {
+  const proto = location.protocol === "https:" ? "wss" : "ws";
+  ws = new WebSocket(`${proto}://${location.host}/ws`);
+  ws.onopen = () => { document.getElementById("liveDot").classList.add("live"); setInterval(()=>{ if(ws.readyState===1) ws.send(JSON.stringify({type:"ping"})); }, 15000); };
+  ws.onclose = () => { document.getElementById("liveDot").classList.remove("live"); setTimeout(connectWs, 3000); };
+  ws.onmessage = (ev) => {
+    const msg = JSON.parse(ev.data);
+    if (msg.type === "ticks") renderTicks(msg.data);
+    if (msg.type === "trade_opened" || msg.type === "trade_closed") { refreshPositions(); refreshAccount(); }
+  };
+}
+
+function renderTicks(data) {
+  const el = document.getElementById("ticks");
+  const rows = Object.entries(data).map(([sym, t]) => {
+    if (!t || t.bid === undefined) return "";
+    return `<div class="sym">${sym}</div><div class="bid">${t.bid}</div><div class="ask">${t.ask}</div>`;
+  }).join("");
+  el.innerHTML = rows || '<div class="empty" style="grid-column:1/4;">Sem dados — MT5 ligado?</div>';
+}
+
+async function refreshAccount() {
+  try {
+    const a = await (await fetch(`${API}/api/account`)).json();
+    document.getElementById("acctInfo").innerHTML = `
+      <span>Login: <b>${a.login ?? "—"}</b></span>
+      <span>Saldo: <b>$${(a.balance ?? 0).toFixed(2)}</b></span>
+      <span>Equity: <b>$${(a.equity ?? 0).toFixed(2)}</b></span>
+      <span>Lucro: <b style="color:${(a.profit ?? 0) >= 0 ? 'var(--green)' : 'var(--red)'}">$${(a.profit ?? 0).toFixed(2)}</b></span>`;
+  } catch (e) { /* server not reachable yet */ }
+}
+
+async function refreshPositions() {
+  try {
+    const pos = await (await fetch(`${API}/api/positions`)).json();
+    const body = document.getElementById("positionsBody");
+    if (!pos.length) { body.innerHTML = '<tr><td colspan="6" class="empty">Sem posições</td></tr>'; return; }
+    body.innerHTML = pos.map(p => `
+      <tr>
+        <td>${p.symbol}</td>
+        <td class="${p.type === 'BUY' ? 'buy' : 'sell'}">${p.type}</td>
+        <td>${p.volume}</td>
+        <td>${p.open_price}</td>
+        <td style="color:${p.profit >= 0 ? 'var(--green)' : 'var(--red)'}">$${p.profit}</td>
+        <td><button onclick="closeTrade(${p.ticket})">Fechar</button></td>
+      </tr>`).join("");
+  } catch (e) {}
+}
+
+async function refreshSignals() {
+  try {
+    const s = await (await fetch(`${API}/api/signals`)).json();
+    const list = document.getElementById("signalsList");
+    document.getElementById("signalsUpdated").textContent = s.updated ? `· ${new Date(s.updated).toLocaleTimeString()}` : "";
+    if (!s.signals || !s.signals.length) { list.innerHTML = '<div class="empty">Sem sinais — scanner a correr…</div>'; return; }
+    list.innerHTML = s.signals.map(sig => `
+      <div class="analysis-line">
+        <span>${sig.symbol} ${sig.tf} <span class="${sig.direction === 'BUY' ? 'buy' : 'sell'}">${sig.direction}</span></span>
+        <span><span class="pill ${sig.quality.replace('+','plus')}">${sig.quality}</span> ${sig.confidence.toFixed(0)}%</span>
+      </div>`).join("");
+  } catch (e) {}
+}
+
+async function runAnalysis() {
+  const sym = document.getElementById("symSel").value;
+  const tf = document.getElementById("tfSel").value;
+  const el = document.getElementById("analysisResult");
+  el.innerHTML = '<div class="empty">A analisar…</div>';
+  try {
+    const r = await (await fetch(`${API}/api/analyse/${sym}/${tf}`)).json();
+    el.innerHTML = `
+      <div class="analysis-line"><span>Bias</span><span class="${r.bias === 'BULLISH' ? 'buy' : r.bias === 'BEARISH' ? 'sell' : ''}">${r.bias}</span></div>
+      <div class="analysis-line"><span>BOS / CHoCH</span><span>${r.bos ?? '—'} / ${r.choch ?? '—'}</span></div>
+      <div class="analysis-line"><span>Order Block</span><span>${r.order_block ? `${r.order_block.low}-${r.order_block.high}` : '—'}</span></div>
+      <div class="analysis-line"><span>FVG</span><span>${r.fvg ? `${r.fvg.low}-${r.fvg.high}` : '—'}</span></div>
+      <div class="analysis-line"><span>SL / TPs</span><span>${r.sl ?? '—'} / ${(r.tps||[]).join(', ') || '—'}</span></div>
+      <div class="analysis-line"><span>Qualidade</span><span><span class="pill ${r.quality.replace('+','plus')}">${r.quality}</span> ${r.confidence.toFixed(0)}%</span></div>
+      <div class="analysis-line"><span>Killzone</span><span class="badge-kz">${r.killzone}</span></div>
+      <div class="summary-box">${r.summary}</div>`;
+  } catch (e) { el.innerHTML = '<div class="empty">Erro — servidor/MT5 indisponível</div>'; }
+}
+
+async function runAiDecide() {
+  const sym = document.getElementById("symSel").value;
+  const tf = document.getElementById("tfSel").value;
+  const el = document.getElementById("analysisResult");
+  el.innerHTML = '<div class="empty">Sofia a pensar (Ollama)…</div>';
+  try {
+    const d = await (await fetch(`${API}/api/ai/decide/${sym}/${tf}`, { method: "POST" })).json();
+    el.innerHTML = `
+      <div class="analysis-line"><span>Decisão IA</span><span class="${d.action === 'BUY' ? 'buy' : d.action === 'SELL' ? 'sell' : ''}">${d.action} (${d.confidence}%)</span></div>
+      <div class="analysis-line"><span>Entry / SL</span><span>${d.entry} / ${d.sl}</span></div>
+      <div class="analysis-line"><span>TP1/TP2/TP3</span><span>${d.tp1} / ${d.tp2} / ${d.tp3}</span></div>
+      <div class="analysis-line"><span>Lote / R:R</span><span>${d.lot} / ${d.rr}</span></div>
+      <div class="summary-box">${d.reasoning}</div>`;
+    if (d.action === "BUY" || d.action === "SELL") {
+      // Pré-preenche o formulário de ordem com os níveis calculados pela IA
+      document.getElementById("tradeSymbol").value = sym;
+      document.getElementById("tradeLot").value = d.lot || 0.01;
+      document.getElementById("tradeSl").value = d.sl || "";
+      document.getElementById("tradeTp").value = d.tp1 || "";
+    }
+  } catch (e) { el.innerHTML = '<div class="empty">Erro — Ollama indisponível</div>'; }
+}
+
+async function openTrade(direction) {
+  const body = {
+    symbol: document.getElementById("tradeSymbol").value,
+    direction,
+    lot: document.getElementById("tradeLot").value,
+    sl: document.getElementById("tradeSl").value,
+    tp: document.getElementById("tradeTp").value,
+  };
+  const box = document.getElementById("tradeResult");
+  box.style.display = "block";
+  box.textContent = "A enviar ordem…";
+  try {
+    const r = await (await fetch(`${API}/api/trade/open`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body)
+    })).json();
+    box.textContent = JSON.stringify(r, null, 2);
+    refreshPositions(); refreshAccount();
+  } catch (e) { box.textContent = "Erro ao enviar ordem"; }
+}
+
+async function closeTrade(ticket) {
+  try {
+    await fetch(`${API}/api/trade/close/${ticket}`, { method: "POST" });
+    refreshPositions(); refreshAccount();
+  } catch (e) {}
+}
+
+async function closeAllTrades() {
+  if (!confirm("Fechar TODAS as posições abertas?")) return;
+  try {
+    await fetch(`${API}/api/trade/close_all`, { method: "POST" });
+    refreshPositions(); refreshAccount();
+  } catch (e) {}
+}
+
+function appendChat(role, text) {
+  const log = document.getElementById("chatLog");
+  const div = document.createElement("div");
+  div.className = `msg ${role}`;
+  div.innerHTML = `<b>${role === 'user' ? 'Tu' : 'Sofia'}</b>${text}`;
+  log.appendChild(div);
+  log.scrollTop = log.scrollHeight;
+}
+
+async function sendChat() {
+  const input = document.getElementById("chatInput");
+  const msg = input.value.trim();
+  if (!msg) return;
+  appendChat("user", msg);
+  input.value = "";
+  try {
+    const r = await (await fetch(`${API}/api/ai/chat?msg=${encodeURIComponent(msg)}`)).json();
+    appendChat("sofia", r.response);
+  } catch (e) { appendChat("sofia", "Erro ao contactar Ollama."); }
+}
+
+connectWs();
+refreshAccount();
+refreshPositions();
+refreshSignals();
+setInterval(refreshAccount, 5000);
+setInterval(refreshPositions, 5000);
+setInterval(refreshSignals, 10000);
+</script>
+
+</body>
+</html>
